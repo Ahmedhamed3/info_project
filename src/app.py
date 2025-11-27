@@ -672,12 +672,25 @@ def main():
                     0.2,
                     step=0.05,
                 )
+        metric_labels = {
+            "nDCG": "<span style='color:#FFD700;'>nDCG</span> – measures how well results are ranked compared to ideal ranking",
+            "AP": "<span style='color:#FFD700;'>AP</span> – average relevance score across all retrieved documents",
+            "precision@k": "<span style='color:#FFD700;'>precision@k</span> – percent of relevant documents inside the top-k results",
+            "recall@k": "<span style='color:#FFD700;'>recall@k</span> – percent of all relevant documents retrieved in the top-k",
+        }
+
+        st.markdown(
+            "<style>.stSelectbox span{white-space:pre-wrap;}</style>",
+            unsafe_allow_html=True,
+        )
 
         decision_metric_ui = st.selectbox(
                 "Metric for recommendation",
-                ["nDCG", "AP", "precision@k", "recall@k"],
-                index=0,
-            )
+            options=list(metric_labels.keys()),
+            format_func=lambda key: metric_labels[key],
+            index=0,
+            key="decision_metric_ui",
+        )
 
 
         if st.button("Evaluate this query"):
@@ -826,76 +839,7 @@ def main():
 
                 st.dataframe(breakdown_df, width="stretch")
 
-                # Key Entities area (tables only, topic-aware)
-                st.markdown("### Key Entities")
-                col_left, col_right = st.columns(2)
-
-                with col_left:
-                    st.markdown("#### Cybersecurity Entities")
-                    if cyber_count == 0:
-                        st.info("No cybersecurity documents in the current results.")
-                    else:
-                        cyber_df = results[results["category"].isin(CYBER_CATEGORIES)]
-
-                        # Top actors
-                        actors_series = cyber_df["actor"].dropna().astype(str).str.strip()
-                        actors_series = actors_series[actors_series != ""]
-                        actor_counts = actors_series.value_counts().head(5)
-                        if not actor_counts.empty:
-                            st.write("Top Actors")
-                            st.table(actor_counts.reset_index().rename(columns={"index": "Actor", "actor": "Count"}))
-                        else:
-                            st.info("No actor information available.")
-
-                        # Top attack vectors
-                        vector_series = cyber_df["vector"].dropna().astype(str).str.strip()
-                        vector_series = vector_series[vector_series != ""]
-                        vector_counts = vector_series.value_counts().head(5)
-                        if not vector_counts.empty:
-                            st.write("Top Attack Vectors")
-                            st.table(
-                                vector_counts.reset_index().rename(
-                                    columns={"index": "Vector", "vector": "Count"}
-                                )
-                            )
-                        else:
-                            st.info("No attack vector information available.")
-
-                with col_right:
-                    st.markdown("#### Sports Entities")
-                    if sports_count == 0:
-                        st.info("No sports documents in the current results.")
-                    else:
-                        sports_df = results[results["category"].isin(SPORTS_CATEGORIES)]
-
-                        # Top teams/players
-                        team_series = sports_df["team_or_player"].dropna().astype(str).str.strip()
-                        team_series = team_series[team_series != ""]
-                        team_counts = team_series.value_counts().head(5)
-                        if not team_counts.empty:
-                            st.write("Top Teams / Players")
-                            st.table(
-                                team_counts.reset_index().rename(
-                                    columns={"index": "Team/Player", "team_or_player": "Count"}
-                                )
-                            )
-                        else:
-                            st.info("No team/player information available.")
-
-                        # Top event types
-                        event_series = sports_df["event_type"].dropna().astype(str).str.strip()
-                        event_series = event_series[event_series != ""]
-                        event_counts = event_series.value_counts().head(5)
-                        if not event_counts.empty:
-                            st.write("Top Event Types")
-                            st.table(
-                                event_counts.reset_index().rename(
-                                    columns={"index": "Event Type", "event_type": "Count"}
-                                )
-                            )
-                        else:
-                            st.info("No event type information available.")
-
+              
     # ===================== TAB 2: DATASET ANALYTICS =====================
     with tab_dataset:
         st.subheader("Dataset Overview")
