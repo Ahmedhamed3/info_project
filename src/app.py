@@ -673,25 +673,24 @@ def main():
                     step=0.05,
                 )
         metric_labels = {
-            "nDCG": "<span style='color:#FFD700;'>nDCG</span> – measures how well results are ranked compared to ideal ranking",
-            "AP": "<span style='color:#FFD700;'>AP</span> – average relevance score across all retrieved documents",
-            "precision@k": "<span style='color:#FFD700;'>precision@k</span> – percent of relevant documents inside the top-k results",
-            "recall@k": "<span style='color:#FFD700;'>recall@k</span> – percent of all relevant documents retrieved in the top-k",
+            "nDCG": "nDCG – measures ranking quality",
+            "AP": "AP – average relevance across retrieved documents",
+            "precision@k": "precision@k – percent of relevant docs in top-k",
+            "recall@k": "recall@k – percent of all relevant docs retrieved in top-k",
         }
 
-        st.markdown(
-            "<style>.stSelectbox span{white-space:pre-wrap;}</style>",
-            unsafe_allow_html=True,
-        )
 
         decision_metric_ui = st.selectbox(
                 "Metric for recommendation",
             options=list(metric_labels.keys()),
-            format_func=lambda key: metric_labels[key],
             index=0,
             key="decision_metric_ui",
         )
-
+        st.markdown(
+            f"<span style='color:#FFD700; font-weight:bold;'>{decision_metric_ui}</span> – "
+            f"{metric_labels[decision_metric_ui].split('–', 1)[1]}",
+            unsafe_allow_html=True,
+        )
 
         if st.button("Evaluate this query"):
                 if not query.strip():
