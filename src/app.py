@@ -500,6 +500,9 @@ def main():
         has_valid_results = False
 
         tfidf_query_vec = None
+        processed_query = ""
+        stemmed_query = ""
+        combined_query = ""
 
         if search_btn:
             if filtered_df.empty:
@@ -509,7 +512,12 @@ def main():
             else:
                 try:
                     # Preprocess query using the same logic as SearchEngine
-                    query_clean = se._preprocess_query(query)
+                    (
+                        processed_query,
+                        stemmed_query,
+                        combined_query,
+                    ) = se.preprocess_query_details(query)
+                    query_clean = combined_query
                     query_tokens = set(query_clean.split())
 
                     if model == "TF-IDF (VSM)":
@@ -551,7 +559,11 @@ def main():
                             st.success(
                                 f"Found {len(results)} results (showing up to {top_k})."
                             )
-
+                            st.markdown("#### Query Processing Overview")
+                            st.write(
+                                f"- Processed query: `{processed_query}`"
+                            )
+                            st.write(f"- Stemmed query: `{stemmed_query}`")         
                             for idx, row in results.iterrows():
                                 clean_text = str(row.get("clean_text", ""))
                                 doc_tokens = set(clean_text.lower().split())

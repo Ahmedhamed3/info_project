@@ -13,7 +13,7 @@ from rank_bm25 import BM25Okapi
 # NLTK for query preprocessing (same style as your corpus)
 import nltk
 from nltk.corpus import stopwords
-from nltk.stem import WordNetLemmatizer
+from nltk.stem import PorterStemmer, WordNetLemmatizer
 from nltk.tokenize import word_tokenize
 
 
@@ -86,13 +86,9 @@ class SearchEngine:
 
         self.stop_words = set(stopwords.words("english"))
         self.lemmatizer = WordNetLemmatizer()
+        self.stemmer = PorterStemmer()
 
-    def _preprocess_query(self, query: str) -> str:
-        """
-        Apply similar preprocessing to the query as done for clean_text:
-        lowercase, remove non-letters, tokenize, remove stopwords, lemmatize.
-        Returns a cleaned string.
-        """
+    def _clean_and_lemmatize_query(self, query: str) -> List[str]:
         text = query.lower()
         # remove URLs
         text = re.sub(r"http\S+|www\.\S+", " ", text)
@@ -103,9 +99,34 @@ class SearchEngine:
         # remove stopwords + very short tokens
         tokens = [t for t in tokens if t not in self.stop_words and len(t) > 2]
         # lemmatize
-        tokens = [self.lemmatizer.lemmatize(t) for t in tokens]
+        return [self.lemmatizer.lemmatize(t) for t in tokens]
 
-        return " ".join(tokens)
+    def _preprocess_query(self, query: str) -> str:
+        """
+        Apply similar preprocessing to the query as done for clean_text:
+        lowercase, remove non-letters, tokenize, remove stopwords, lemmatize.
+        Returns a cleaned string.
+        """
+        tokens = self._clean_and_lemmatize_query(query)
+        stemmed_tokens = [self.stemmer.stem(t) for t in tokens]
+        combined_tokens = tokens + [stem for stem in stemmed_tokens if stem not in tokens]
+
+        return " ".join(combined_tokens)
+
+    def preprocess_query_details(self, query: str) -> tuple[str, str, str]:
+        """
+        Return the lemmatized query, its stemmed form, and the combined string
+        used for searching (lemmatized tokens plus unique stems).
+        """
+        tokens = self._clean_and_lemmatize_query(query)
+        stemmed_tokens = [self.stemmer.stem(t) for t in tokens]
+        combined_tokens = tokens + [stem for stem in stemmed_tokens if stem not in tokens]
+
+        processed_query = " ".join(tokens)
+        stemmed_query = " ".join(stemmed_tokens)
+        combined_query = " ".join(combined_tokens)
+
+        return processed_query, stemmed_query, combined_query
 
     # ------------------------------------------------------------------
     # Filters
