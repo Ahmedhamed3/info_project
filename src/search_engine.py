@@ -22,8 +22,7 @@ class SearchEngine:
     Cybersecurity Threat Search Engine
 
     Uses:
-      - Overlap-based scoring for TF-IDF search name:
-          score = (# query tokens found in doc) / (# query tokens)
+      - TF-IDF / VSM with cosine similarity scoring
       - BM25
       - Simple Boolean search over clean_text
 
@@ -63,8 +62,6 @@ class SearchEngine:
         self.bm25 = BM25Okapi(self.tokenized_docs)
         print("[+] BM25 index built.")
 
-        # Precompute token sets for overlap scoring
-        self.doc_token_sets = [set(doc.split()) for doc in self.clean_text_series]
 
         # Build preprocessing tools for queries (same style as corpus)
         self._build_query_preprocessor()
@@ -158,7 +155,7 @@ class SearchEngine:
         return df_results[mask]
 
     # ------------------------------------------------------------------
-    # TF-IDF / VSM search (but score = token overlap)
+    # TF-IDF / VSM search (cosine similarity)
     # ------------------------------------------------------------------
     def search_tfidf(
         self,
@@ -167,16 +164,14 @@ class SearchEngine:
         filters: Optional[Dict] = None,
     ) -> pd.DataFrame:
         """
-        OVERLAP-BASED SEARCH
+        TF-IDF / Vector Space Model search using cosine similarity.
 
-        Score is based purely on how many query tokens appear in the document:
-
-            score = (# matched query tokens) / (# query tokens)
-
-        So:
-          - score = 1.0 -> all query words are present in clean_text
-          - score = 0.5 -> half of the query words appear
-          - score = 0.0 -> none of the query words appear
+        Steps:
+          - Preprocess query using the same pipeline as the corpus
+          - Vectorize query with the trained TF-IDF vectorizer
+          - Compute cosine similarity between the query vector and all
+            document vectors in the TF-IDF matrix
+          - Rank documents **only** by this cosine similarity score
         """
         if not query.strip():
             raise ValueError("Query is empty.")
@@ -185,25 +180,13 @@ class SearchEngine:
         if not clean_query:
             raise ValueError("Query became empty after preprocessing.")
 
-        query_tokens = clean_query.split()
-        if not query_tokens:
-            raise ValueError("Query has no tokens after preprocessing.")
+        # Vectorize query and compute cosine similarity to all documents
+        query_vec = self.tfidf_vectorizer.transform([clean_query])
+        cosine_scores = cosine_similarity(query_vec, self.X_tfidf).flatten()
 
-        query_set = set(query_tokens)
-        q_len = len(query_set)
-
-        # Compute overlap score for each document
-        scores = []
-        for doc_tokens in self.doc_token_sets:
-            matched = len(query_set.intersection(doc_tokens))
-            score = matched / q_len  # fraction of query tokens found
-            scores.append(score)
-
-        scores = np.array(scores, dtype=float)
-
-         # Build DataFrame with scores, apply filters, then drop zero/near-zero results
+        # Build DataFrame with scores and apply filters
         df_results = self.df.copy()
-        df_results["score"] = scores
+        df_results["score"] = cosine_scores
         df_results = self._apply_filters(df_results, filters)
 
        # Remove documents with zero (or negligible) score before ranking/limiting
@@ -213,14 +196,8 @@ class SearchEngine:
         if df_results.empty:
             return df_results
 
-        # Rank remaining documents and then cap at top_k
-        if "severity" in df_results.columns:
-            df_results = df_results.sort_values(
-                by=["score", "severity"],
-                ascending=[False, False]
-            )
-        else:
-            df_results = df_results.sort_values("score", ascending=False)
+        # Rank by cosine similarity only and then cap at top_k
+        df_results = df_results.sort_values("score", ascending=False)
 
         return df_results.head(top_k)
 
