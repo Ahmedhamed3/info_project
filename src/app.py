@@ -10,6 +10,7 @@ from collections import Counter
 from sklearn.metrics.pairwise import cosine_similarity
 from nltk.corpus import stopwords
 import nltk
+import matplotlib.pyplot as plt
 
 from search_engine import SearchEngine
 
@@ -67,6 +68,27 @@ def highlight_text(text: str, matched_tokens: set[str]) -> str:
         )
 
     return highlighted
+
+    # -------------------------------------------------------------------
+# Helper: static bar chart for diagnostics
+# -------------------------------------------------------------------
+def render_static_score_chart(
+    labels: list[str], scores: list[float], title: str, y_label: str
+) -> None:
+    """
+    Render a simple static bar chart (no interactive toolbar) with matplotlib.
+    """
+
+    fig, ax = plt.subplots(figsize=(10, 4))
+    ax.bar(labels, scores, color="#4C78A8")
+    ax.set_title(title)
+    ax.set_xlabel("Document")
+    ax.set_ylabel(y_label)
+    ax.tick_params(axis="x", rotation=45, labelsize=9)
+    ax.grid(axis="y", linestyle="--", alpha=0.4)
+
+    st.pyplot(fig, use_container_width=True)
+    plt.close(fig)
 
 
 # -------------------------------------------------------------------
@@ -1055,59 +1077,73 @@ def main():
 
             # ---------- TF-IDF Diagnostics ----------
             st.markdown("### TF-IDF Diagnostics for This Query")
+            if has_valid_results and results is not None and not results.empty:
+                if model == "TF-IDF (VSM)" and tfidf_query_vec is not None:
+                    doc_indices = results.index.tolist()
+                    doc_vectors = se.X_tfidf[doc_indices]
+                    cosine_scores = cosine_similarity(
+                        tfidf_query_vec, doc_vectors
+                    ).flatten()
 
-            if tokens:
-                q_vec = se.tfidf_vectorizer.transform([clean_query])
-                sims = cosine_similarity(q_vec, se.X_tfidf)[0]
+                    labels = []
+                    for rank, text in enumerate(
+                        results["clean_text"].astype(str).tolist(), start=1
+                    ):
+                        snippet = (text[:30] + "…") if len(text) > 30 else text
+                        labels.append(f"{rank}. {snippet}")
 
-                st.write(
-                    f"- Cosine similarity range: "
-                    f"min = {sims.min():.4f}, max = {sims.max():.4f}, mean = {sims.mean():.4f}"
-                )
-
-                top_idx = np.argsort(sims)[::-1][:20]
-                tfidf_diag_df = df.iloc[top_idx].copy()
-                tfidf_diag_df["tfidf_score"] = sims[top_idx]
-
-                diag_chart_df = tfidf_diag_df[["clean_text", "tfidf_score"]].copy()
-                diag_chart_df = diag_chart_df.set_index(
-                    diag_chart_df["clean_text"].str.slice(0, 40) + "..."
-                )[["tfidf_score"]]
-
-                st.write("Top documents by TF-IDF score:")
-                st.bar_chart(diag_chart_df)
-            else:
-                st.info(
-                    "Query has no valid tokens after preprocessing; TF-IDF diagnostics are not available."
-                )
+                    st.write(
+                        "- Cosine similarity for the current results "
+                        f"(min={cosine_scores.min():.4f}, "
+                        f"max={cosine_scores.max():.4f}, "
+                        f"mean={cosine_scores.mean():.4f})"
+                    )
+                    
+                    render_static_score_chart(
+                        labels,
+                        cosine_scores.tolist(),
+                        "TF-IDF ranked results",
+                        "Cosine similarity",
+                    )
+                else:
+                    st.info(
+                        "Run a TF-IDF search in Tab 1 to visualize cosine similarity scores for the current results."
+                    )
+            else :
+                  st.info("No search results available to visualize.")
+        
 
             # ---------- BM25 Diagnostics ----------
             st.markdown("### BM25 Diagnostics for This Query")
 
-            if tokens:
-                bm25_raw = np.array(se.bm25.get_scores(tokens), dtype=float)
-                if bm25_raw.size > 0:
+            if has_valid_results and results is not None and not results.empty:
+                if model == "BM25" and "bm25_raw" in results.columns:
+                    bm25_scores = results["bm25_raw"].astype(float).tolist()
+                    labels = []
+                    for rank, text in enumerate(
+                        results["clean_text"].astype(str).tolist(), start=1
+                    ):
+                        snippet = (text[:30] + "…") if len(text) > 30 else text
+                        labels.append(f"{rank}. {snippet}")
                     st.write(
-                        f"- BM25 raw score range: "
-                        f"min = {bm25_raw.min():.4f}, max = {bm25_raw.max():.4f}, "
-                        f"mean = {bm25_raw.mean():.4f}"
+                        "- BM25 raw scores for the current results "
+                        f"(min={min(bm25_scores):.4f}, "
+                        f"max={max(bm25_scores):.4f}, "
+                        f"mean={np.mean(bm25_scores):.4f})"
                     )
 
-                    top_idx_bm = np.argsort(bm25_raw)[::-1][:20]
-                    bm25_diag_df = df.iloc[top_idx_bm].copy()
-                    bm25_diag_df["bm25_raw"] = bm25_raw[top_idx_bm]
-
-                    bm25_chart_df = bm25_diag_df[["clean_text", "bm25_raw"]].copy()
-                    bm25_chart_df = bm25_chart_df.set_index(
-                        bm25_chart_df["clean_text"].str.slice(0, 40) + "..."
-                    )[["bm25_raw"]]
-
-                    st.write("Top documents by BM25 raw score:")
-                    st.bar_chart(bm25_chart_df)
+                    render_static_score_chart(
+                        labels,
+                        bm25_scores,
+                        "BM25 ranked results",
+                        "BM25 raw score",
+                    )
+                else:
+                    st.info(
+                        "Run a BM25 search in Tab 1 to visualize BM25 raw scores for the current results."
+                    )
             else:
-                st.info(
-                    "Query has no valid tokens after preprocessing; BM25 diagnostics are not available."
-                )
+                st.info("No search results available to visualize.")
 
             # ---------- Query Difficulty Heuristic ----------
             st.markdown("### Query Difficulty Assessment")
