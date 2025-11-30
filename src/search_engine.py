@@ -270,9 +270,14 @@ class SearchEngine:
         Rules:
         - Operators are AND, OR, NOT (case-insensitive).
         - If no operator is specified between terms, AND is assumed.
-        - Terms are matched against `clean_text`.
+        - Terms are matched against `clean_text` and also the original `text` field when available.
         - Matching documents receive score = 1.0.
         """
+
+        def _normalize_and_split(text: str) -> List[str]:
+            """Lowercase and split a text into tokens using alphanumerics only."""
+            normalized = re.sub(r"[^a-z0-9]+", " ", text.lower())
+            return [tok for tok in normalized.split() if tok]
 
         def _tokenize_boolean_query(raw_query: str) -> List[str]:
             pattern = r"\(|\)|\bAND\b|\bOR\b|\bNOT\b|\w+"
@@ -285,11 +290,7 @@ class SearchEngine:
                     processed_tokens.append(upper_tok)
                     continue
 
-                clean_tok = self._preprocess_query(tok).strip()
-                if not clean_tok:
-                    continue
-                # _preprocess_query may expand into multiple tokens (rare); keep each
-                processed_tokens.extend(clean_tok.split())
+            processed_tokens.extend(_normalize_and_split(tok))
 
             return processed_tokens
 
@@ -377,7 +378,11 @@ class SearchEngine:
         matches = []
         for idx, row in self.df.iterrows():
             clean_text = str(row.get("clean_text", ""))
-            doc_tokens = set(clean_text.lower().split())
+            doc_tokens = set(_normalize_and_split(clean_text))
+
+            original_text = row.get("text")
+            if isinstance(original_text, str):
+                doc_tokens.update(_normalize_and_split(original_text))
 
             try:
                 if _evaluate_postfix(postfix_expr, doc_tokens):
